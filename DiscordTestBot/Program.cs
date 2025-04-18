@@ -3,11 +3,9 @@ using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
 using Timer = System.Timers.Timer;
-using Microsoft.AspNetCore;
-using Microsoft.Extensions.DependencyInjection;
+using Coravel;
 using Microsoft.Extensions.Hosting;
-using Quartz;
-using System.Net.Sockets;
+using Scheduling.Api;
 
 namespace DiscordTestBot;
 
@@ -23,23 +21,6 @@ internal class Program
         _client.MessageReceived += MessageHandler;
         _client.Log += LogAsync;
 
-        // // create a new timer using a calculated TimeSpan that gets the Ticks from 20 Hours.
-        // ReminderTimer = new Timer(new TimeSpan(TimeSpan.FromHours(20).Ticks)); // replace with Cron Job
-        // ReminderTimer.Elapsed += ReminderMediMsg; // add function to EventHandler
-        // ReminderTimer.AutoReset = true;
-        // ReminderTimer.Enabled = true; // enable the timer
-        // var builder = WebApplication.CreateBuilder(new string[0]);
-
-
-        var builder = WebApplication.CreateBuilder(args);
-
-        builder.Services.AddQuartz();
-
-        var app = builder.Build();
-
-        app.RunHttpsRedirection();
-
-        app.Run();
 
     }
 
@@ -92,8 +73,8 @@ internal class Program
     private async Task ReplyAsync(SocketMessage msg, string response)
     {
         await msg.Channel
-                 .SendMessageAsync(
-                         response); // Asynchronously sends a message "string" onto Channel(ISocketMessageChannel)
+                .SendMessageAsync(
+                        response); // Asynchronously sends a message "string" onto Channel(ISocketMessageChannel)
     }
 
     // /* Meditaion Reminder */
@@ -112,11 +93,39 @@ internal class Program
 
     // }
 
-    private static async Task Main(string[] args)
+    private static async Task Main(SocketMessage msg, string response)
     {
-        var myBot = new Program();   // instantiate new class
-        await myBot.StartBotAsync(); // run Init method of this class
+
+        var ChannelName = msg.Channel.Name;
+
+        await msg.Channel.SendMessageAsync($"{ChannelName}: {response}");
+
+        var UserIdPing = msg.Author.Id;
+        System.Console.WriteLine(UserIdPing);
+
+        await msg.Channel.SendMessageAsync($"{msg.Author.Mention}");
+
+        // scheduler
+        var builder = Host.CreateApplicationBuilder();
+
+        builder.Services.AddScheduler();
+
+        var app = builder.Build();
+
+        app.Services.UseScheduler(scheduler =>
+        {
+            scheduler.ScheduleWithParams<MyRepeatableTask>("It's Meowditation Time :3")
+                .DailyAt(18, 00); // run daily at 18:00 
+
+        });
+
+        await app.RunAsync(); // cuz async you have to use RunAsync(); instead Run();
     }
+
+
+    // var myBot = new Program();   // instantiate new class
+    // await myBot.StartBotAsync(); // run Init method of this class
+
 
     // Hooked method onto Logger Interface of Discord.NET library. This can be replaced by SeriLog or .NET Logger library later
     private Task LogAsync(LogMessage log)
